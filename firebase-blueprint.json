@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "Playlist": {
+      "title": "playlist",
+      "description": "A user-curated playlist or an AI-generated playlist schema",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Title of the playlist"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the playlist"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the creator"
+        },
+        "ownerName": {
+          "type": "string",
+          "description": "Display name of the creator"
+        },
+        "tracksCount": {
+          "type": "integer",
+          "description": "Number of tracks in the playlist"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when this playlist was created"
+        }
+      },
+      "required": ["title", "ownerId", "createdAt"]
+    },
+    "TrackReference": {
+      "title": "track_reference",
+      "description": "Tracks embedded inside playlists",
+      "type": "object",
+      "properties": {
+        "trackId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "audioUrl": {
+          "type": "string"
+        },
+        "coverUrl": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "integer"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["trackId", "title", "artist", "audioUrl"]
+    },
+    "LikedSong": {
+      "title": "liked_song",
+      "description": "Tracks marked as liked by the user",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID of the user who liked the song"
+        },
+        "songId": {
+          "type": "string",
+          "description": "Unique key for the song"
+        },
+        "title": {
+          "type": "string",
+          "description": "Song title"
+        },
+        "artist": {
+          "type": "string",
+          "description": "Song artists"
+        },
+        "audioUrl": {
+          "type": "string",
+          "description": "Streaming audio URL"
+        },
+        "coverUrl": {
+          "type": "string",
+          "description": "Album Cover image link"
+        },
+        "duration": {
+          "type": "integer",
+          "description": "Track duration in seconds"
+        },
+        "likedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the action"
+        }
+      },
+      "required": ["userId", "songId", "title", "artist", "audioUrl", "likedAt"]
+    }
+  },
+  "firestore": {
+    "playlists/{playlistId}": {
+      "schema": "Playlist",
+      "description": "Primary user and AI playlists containing music data"
+    },
+    "playlists/{playlistId}/tracks/{trackId}": {
+      "schema": "TrackReference",
+      "description": "List of tracks stored inside a specific playlist"
+    },
+    "users/{userId}/likedSongs/{songId}": {
+      "schema": "LikedSong",
+      "description": "Individual tracks liked by a specific user"
+    }
+  }
+}

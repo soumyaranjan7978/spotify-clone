@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reuseable primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper to validate incoming playlist documents
+    function isValidPlaylist(data) {
+      return data.title is string 
+        && data.title.size() > 0 
+        && data.title.size() <= 128
+        && (!('description' in data) || (data.description is string && data.description.size() <= 512))
+        && data.ownerId is string 
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp;
+    }
+
+    // Helper to validate track metadata
+    function isValidTrackReference(data) {
+      return data.trackId is string
+        && data.trackId.size() <= 128
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 128
+        && data.artist is string
+        && data.artist.size() > 0
+        && data.artist.size() <= 128
+        && data.audioUrl is string
+        && data.audioUrl.size() <= 1024
+        && (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 1024))
+        && (!('duration' in data) || (data.duration is int && data.duration >= 0));
+    }
+
+    // Helper to validate liked song records
+    function isValidLikedSong(data) {
+      return data.userId is string
+        && data.userId == request.auth.uid
+        && data.songId is string
+        && data.songId.size() <= 128
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 128
+        && data.artist is string
+        && data.artist.size() > 0
+        && data.artist.size() <= 128
+        && data.audioUrl is string
+        && data.audioUrl.size() <= 1024
+        && (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 1024))
+        && (!('duration' in data) || (data.duration is int && data.duration >= 0))
+        && data.likedAt is timestamp;
+    }
+
+    // 1. Playlists Collection
+    match /playlists/{playlistId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() 
+        && isValidId(playlistId) 
+        && isValidPlaylist(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if isSignedIn() 
+        && isValidId(playlistId) 
+        && isValidPlaylist(request.resource.data)
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'tracksCount']);
+      allow delete: if isSignedIn() 
+        && isValidId(playlistId) 
+        && resource.data.ownerId == request.auth.uid;
+
+      // 2. Trailing/Sub-collection tracks: Master Gate Pattern (Relational Sync)
+      match /tracks/{trackId} {
+        allow read, list: if isSignedIn();
+        allow create: if isSignedIn()
+          && isValidId(trackId)
+          && isValidTrackReference(request.resource.data)
+          && get(/databases/$(database)/documents/playlists/$(playlistId)).data.ownerId == request.auth.uid;
+        allow update: if isSignedIn()
+          && isValidId(trackId)
+          && isValidTrackReference(request.resource.data)
+          && get(/databases/$(database)/documents/playlists/$(playlistId)).data.ownerId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'artist']);
+        allow delete: if isSignedIn()
+          && isValidId(trackId)
+          && get(/databases/$(database)/documents/playlists/$(playlistId)).data.ownerId == request.auth.uid;
+      }
+    }
+
+    // 3. Liked Songs (Private split User records)
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+
+      match /likedSongs/{songId} {
+        allow read, list, write: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && isValidId(songId)
+          && isValidLikedSong(request.resource.data)
+          && request.resource.data.likedAt == request.time;
+      }
+    }
+  }
+}
